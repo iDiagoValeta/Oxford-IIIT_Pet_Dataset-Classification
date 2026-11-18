@@ -1,48 +1,55 @@
 # Pet Breed Classification with MobileNetV2 (Fine-Tuning)
 
-This project presents a complete solution for classifying pet breeds using a fine-tuned MobileNetV2 model trained on the Oxford-IIIT Pet Dataset. The notebook implements a full machine learning workflow, including data preprocessing, augmentation, a two-phase training strategy, and detailed model evaluation.
+**A single Jupyter notebook that fine-tunes a pretrained MobileNetV2 to classify the 37 cat and dog breeds of the Oxford-IIIT Pet Dataset, for anyone learning transfer learning with Keras.**
 
----
+> **Context.** Built in June 2025 as a personal project, when I was a Computer Engineering student at UPV and had just started publishing on GitHub with machine learning and deep learning exercises. It is one of my first public repos: a compact transfer learning exercise, kept as it was written and not maintained since.
 
-## Notebook Overview
+## What it does
 
-### Dataset
+- Loads the Oxford-IIIT Pet Dataset (37 breeds) through `tensorflow_datasets`, using its `train` split (3,680 images) for training and its `test` split (3,669 images) as validation.
+- Resizes images to 224x224 and applies the MobileNetV2 input normalization to the range [-1, 1].
+- Builds a classifier on an ImageNet-pretrained MobileNetV2 with in-model augmentation and a small dense head.
+- Trains in two phases: feature extraction with the base frozen, then fine-tuning with the base unfrozen.
+- Plots accuracy and loss across both phases and prints sample predictions with their top 5 probabilities.
 
-The project uses the **Oxford-IIIT Pet Dataset**, which includes 37 pet breed categories with around 200 images per class. Images and labels are loaded and processed using `tensorflow_datasets`.
+## How it works
 
-### Model Architecture
+1. Data: `tfds.load('oxford_iiit_pet')` with `as_supervised=True`, batch size 32, shuffle buffer of 1000, prefetch.
+2. Model: augmentation layers (`RandomFlip` horizontal, `RandomRotation(0.05)`, `RandomZoom(0.1)`), MobileNetV2 without its top, `GlobalAveragePooling2D`, `Dense(128, relu)`, `BatchNormalization`, `Dropout(0.3)` and a softmax layer over 37 classes.
+3. Phase 1: base frozen, Adam at 1e-3, up to 20 epochs.
+4. Phase 2: base unfrozen except its `BatchNormalization` layers, Adam at 1e-4, continuing from the epoch where phase 1 stopped.
+5. Both phases use `EarlyStopping` on `val_loss` (patience 3, best weights restored), `ReduceLROnPlateau` (factor 0.5) and `TerminateOnNaN`.
 
-A pre-trained **MobileNetV2** is used as the backbone for feature extraction. A custom classification head is added on top, consisting of Dense layers, BatchNormalization, and Dropout.
+## Results
 
-### Data Augmentation
+Printed in the notebook outputs (run on an NVIDIA RTX 3070 Laptop GPU, 26 June 2025):
 
-On-the-fly data augmentation is integrated directly into the model pipeline using Keras preprocessing layers (`RandomFlip`, `RandomRotation`, `RandomZoom`), helping to improve generalization.
+- Phase 1 stopped at epoch 8, restoring the weights of epoch 5.
+- Phase 2 stopped at epoch 23, restoring the weights of epoch 20.
+- Final evaluation on the `test` split used as validation: loss 0.3606, accuracy 0.8983.
+- Training accuracy reaches 1.0000 in the last epochs while validation accuracy stays near 0.90, so the model overfits the training set.
+- The notebook also prints 15 sample predictions; one is wrong (a Leonberger predicted as wheaten terrier with probability 0.25).
 
-### Two-Phase Training Strategy
+There is no separate held-out test set: the same `test` split drives early stopping, learning rate reduction and the final number.
 
-- **Phase 1: Feature Extraction**
-  - The MobileNetV2 base is frozen (`base_model.trainable = False`).
-  - Only the custom classification head is trained.
-  - This phase allows the new layers to learn how to interpret the extracted features.
+## Run it
 
-- **Phase 2: Fine-Tuning**
-  - The MobileNetV2 base is unfrozen (`base_model.trainable = True`), except for BatchNormalization layers.
-  - A significantly lower learning rate is used.
-  - Fine-tunes the entire model to better adapt to the pet breed classification task.
+Not re-run for this documentation. The notebook has no requirements file, so install the libraries it imports:
 
-### Callbacks Used
+```bash
+pip install tensorflow keras tensorflow-datasets matplotlib numpy
+jupyter notebook MobileNetV2_Classifier.ipynb
+```
 
-- `EarlyStopping`: Stops training to prevent overfitting.
-- `ReduceLROnPlateau`: Dynamically adjusts learning rate based on validation loss.
-- `TerminateOnNaN`: Halts training in case of numerical instability.
+Run the cells in order. The first run downloads the dataset and the ImageNet weights, so it needs internet access. A GPU is recommended; the recorded run used one. Some printed warning messages inside the notebook are written in Spanish.
 
-### Evaluation and Visualization
+## Repository layout
 
-The notebook includes:
+```
+MobileNetV2_Classifier.ipynb   full workflow: data, model, two-phase training, evaluation, sample predictions
+README.md                      this file
+```
 
-- Final loss and accuracy on the validation set.
-- Training/validation accuracy and loss plots over epochs.
-- Visual predictions:
-  - Displaying the true and predicted label.
-  - Showing the confidence score.
-  - Listing the top 5 predicted classes with probabilities.
+## Stack
+
+Python, TensorFlow, Keras, TensorFlow Datasets, Matplotlib, NumPy, Jupyter.
